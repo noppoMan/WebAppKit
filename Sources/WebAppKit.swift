@@ -88,6 +88,8 @@ public enum RouterError: Error {
 public struct Router {
     var routes = [Route]()
     
+    public init() {}
+    
     public mutating func use(_ method: Request.Method, _ path: String, _ handler: @escaping (Request) throws -> Response) {
         let route = BasicRoute(method: method, path: path, handler: handler)
         routes.append(route)
@@ -118,6 +120,8 @@ public final class Ace {
     var routers = [Router]()
     
     var catchHandler: ((Error) throws -> Response)?
+    
+    public init() {}
     
     public func use(_ middleware: Middleware){
         self.middlewares.append(middleware)
