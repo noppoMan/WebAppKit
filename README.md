@@ -84,13 +84,24 @@ try! server.listen()
 RunLoop.main.run()
 ```
 
-## Create xcodeproj and Open it with Xcode
+## 4. Create xcodeproj and Open it with Xcode
 
 ```swift
 swift package generate-xcodeproj --type=executable
 open *.xcodeproj
 ```
 
+## Run with Xcode
+
+- Select Your Application name from Schema(may be MyWebKitApp)
+- Enter `cmd-r` to start up web server
+
+## Run with CLI
+
+```
+swift build
+.build/debug/YourApplicationNamme
+```
 
 ## License
 WebAppKit is released under the MIT license. See LICENSE for details.
