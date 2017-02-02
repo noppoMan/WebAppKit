@@ -56,8 +56,7 @@ let root = #file.characters
 app.use(ServeStaticMiddleware(root: root + "/../public"))
 
 router.use(.get, "/") { request in
-    let html = try String(contentsOfFile: "\(root)/../views/index.html")
-    return Response(body: .buffer(html.data))
+    return Response(body: .buffer("Welcome WebAppKit!".data))
 }
 
 app.use(router)
@@ -71,7 +70,8 @@ app.catch { error in
         return Response(status: .notFound, body: .buffer("\(path) is not found".data))
 
     default:
-        return Response(status: .internalServerError)
+        print(error)
+        return Response(status: .internalServerError, body: .buffer("Internal Server Error".data))
     }
 }
 
