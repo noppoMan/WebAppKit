@@ -47,10 +47,16 @@ import Foundation
 let app = Ace()
 var router = Router()
 
-app.use(ServeStaticMiddleware(root: __dirname + "/../public"))
+let root = #file.characters
+    .split(separator: "/", omittingEmptySubsequences: false)
+    .dropLast(1)
+    .map { String($0) }
+    .joined(separator: "/")
+
+app.use(ServeStaticMiddleware(root: root + "/../public"))
 
 router.use(.get, "/") { request in
-    let html = try String(contentsOfFile: "\(__dirname)/../views/index.html")
+    let html = try String(contentsOfFile: "\(root)/../views/index.html")
     return Response(body: .buffer(html.data))
 }
 

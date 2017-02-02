@@ -143,8 +143,6 @@ public final class Ace {
             response.contentType = mediaType(forFileExtension: "html")
         }
         
-        print(response)
-        
         try writer.serialize(response)
         
         if !request.isKeepAlive {
@@ -230,13 +228,4 @@ extension Request.Method: Hashable {
 
 public func ==(lhs: Request.Method, rhs: Request.Method) -> Bool {
     return lhs.description == rhs.description
-}
-
-
-public var __dirname: String {
-    return #file.characters
-        .split(separator: "/", omittingEmptySubsequences: false)
-        .dropLast(1)
-        .map { String($0) }
-        .joined(separator: "/")
 }
