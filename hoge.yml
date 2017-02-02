@@ -1,0 +1,71 @@
+machine:
+  services:
+    - mysql
+    - docker
+  node:
+    version: 7.0.0
+  pre:
+    - "echo 'Host *' >> $HOME/.ssh/config"
+    - "echo 'ForwardAgent yes' >> $HOME/.ssh/config"
+    - "echo 'SendEnv CHEF_*' >> $HOME/.ssh/config"
+    - "git config --global user.name 'Circle CI'"
+    - "git config --global user.email 'admin@gifly.jp'"
+  environment:
+    MYSQL_MASTER_UPDATE_USER_NAME: root
+    MYSQL_MASTER_UPDATE_USER_PASSWORD: ""
+    DOCKER_REPO: 646028262286.dkr.ecr.ap-northeast-1.amazonaws.com
+    APP_NAME: gifly-app
+    API_NAME: gifly-api
+
+dependencies:
+  pre:
+    - sudo apt-get update
+    - sudo apt-get install python2.7-dev
+    - sudo pip install awscli
+
+  override:
+    - npm install -g knex mocha webpack
+
+    - npm install
+
+database:
+  override:
+    - mysql -u root -e "create database gifly_test"
+
+    - knex migrate:latest --env=test
+
+    - knex seed:run --env=test
+
+test:
+  override:
+    - npm test
+
+deployment:
+  production:
+    branch: [release]
+    commands:
+      - webpack -p
+      - touch .env
+      - echo "MYSQL_MASTER_HOST=$PRODUCTION_MYSQL_MASTER_HOST" >> .env
+      - echo "MYSQL_MASTER_UPDATE_USER_NAME=$PRODUCTION_MYSQL_MASTER_UPDATE_USER_NAME" >> .env
+      - echo "MYSQL_MASTER_UPDATE_USER_PASSWORD=$PRODUCTION_MYSQL_MASTER_UPDATE_USER_PASSWORD" >> .env
+      - ENV_NAME=production /bin/sh ./deployment/scripts/build-docker.sh
+      - ENV_NAME=production /bin/sh ./deployment/scripts/build-nginx-docker.sh
+      - ENV_NAME=production /bin/sh ./deployment/scripts/ecs-db-migrate.sh
+      - ENV_NAME=production /bin/sh ./deployment/scripts/ecs-app-service-deploy.sh
+      - ENV_NAME=production /bin/sh ./deployment/scripts/ecs-db-rollback-register.sh
+      - ENV_NAME=production /bin/sh ./deployment/scripts/ecs-api-service-deploy.sh
+
+  staging:
+    branch: [increase-proxy-timeout, master]
+    commands:
+      - webpack -p
+      - touch .env
+      - echo "MYSQL_MASTER_HOST=$STAGING_MYSQL_MASTER_HOST" >> .env
+      - echo "MYSQL_MASTER_UPDATE_USER_NAME=$STAGING_MYSQL_MASTER_UPDATE_USER_NAME" >> .env
+      - echo "MYSQL_MASTER_UPDATE_USER_PASSWORD=$STAGING_MYSQL_MASTER_UPDATE_USER_PASSWORD" >> .env
+      - ENV_NAME=staging /bin/sh ./deployment/scripts/build-docker.sh
+      - ENV_NAME=staging /bin/sh ./deployment/scripts/build-nginx-docker.sh
+      - ENV_NAME=staging /bin/sh ./deployment/scripts/ecs-db-migrate.sh
+      - ENV_NAME=staging /bin/sh ./deployment/scripts/ecs-db-rollback-register.sh
+      - ENV_NAME=staging /bin/sh ./deployment/scripts/ecs-app-service-deploy.sh
