@@ -10,19 +10,21 @@ class WebAppKitTests: XCTestCase {
             ("testServer", testServer),
         ]
     }
-    
+
     func testServer() {
         let app = Ace()
         var router = Router()
-        
-        router.use(.get, "/") { request in
-            return Response(status: .ok)
+
+        router.use(.get, "/") { request, response in
+            var response = response
+            response.set(body: "Hello!")
+            return response
         }
-        
+
         app.use(router)
-        
+
         let server = try! HTTPServer(app.handler)
-        
+
         go {
             try! server.bind(host: "0.0.0.0", port: 53000)
             print("Server listening at 0.0.0.0:3000")
@@ -30,7 +32,7 @@ class WebAppKitTests: XCTestCase {
         }
 
         var done = false
-        
+
         go {
             sleep(1)
             let url = URL(string: "http://localhost:53000")!
@@ -42,7 +44,7 @@ class WebAppKitTests: XCTestCase {
             }
             task.resume()
         }
-        
+
         while done == false {}
     }
 }

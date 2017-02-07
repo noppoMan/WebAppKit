@@ -55,8 +55,10 @@ let root = #file.characters
 
 app.use(ServeStaticMiddleware(root: root + "/../public"))
 
-router.use(.get, "/") { request in
-    return Response(body: .buffer("Welcome WebAppKit!".data))
+router.use(.get, "/") { request, response in
+    var response = response
+    response.set(body: "Welcome WebAppKit!")
+    return response
 }
 
 app.use(router)

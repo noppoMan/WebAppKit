@@ -3,27 +3,44 @@ import Foundation
 
 public enum Chainer {
     case respond(to: Response)
-    case next
+    case next(Response)
 }
 
-public typealias Respond = (Request) throws -> Response
+public typealias Respond = (Request, Response) throws -> Response
 
 public protocol Middleware {
-    func respond(to request: Request) throws -> Chainer
+    func respond(to request: Request, response: Response) throws -> Chainer
+}
+
+public struct BasicMiddleware: Middleware {
+    
+    let handler: (Request, Response) throws -> Chainer
+    
+    public init(_ handler: @escaping (Request, Response) throws -> Chainer){
+        self.handler = handler
+    }
+    
+    public func respond(to request: Request, response: Response) throws -> Chainer {
+        return try handler(request, response)
+    }
 }
 
 extension Collection where Self.Iterator.Element == Middleware {
-    public func chain(_ request: Request) throws -> Response? {
+    public func chain(_ request: Request) throws -> Chainer {
+        var response = Response()
+        
         for middleware in self.reversed() {
-            switch try middleware.respond(to: request) {
-            case .respond(to: let response):
-                return response
-            case .next:
+            let chainer = try middleware.respond(to: request, response: response)
+            switch chainer {
+            case .next(let res):
+                response = res
                 continue
+            default:
+                return chainer
             }
         }
         
-        return nil
+        return .next(response)
     }
 }
 
@@ -35,7 +52,7 @@ protocol Route {
     var handler: Respond { get }
     var middlewares: [Middleware] { get }
     
-    func respond(_ request: Request) throws -> Response
+    func respond(_ request: Request, _ response: Response) throws -> Response
 }
 
 extension Route {
@@ -76,8 +93,8 @@ struct BasicRoute: Route {
         self.handler = handler
     }
     
-    func respond(_ request: Request) throws -> Response {
-        return try handler(request)
+    func respond(_ request: Request, _ response: Response) throws -> Response {
+        return try handler(request, response)
     }
 }
 
@@ -90,7 +107,7 @@ public struct Router {
     
     public init() {}
     
-    public mutating func use(_ method: Request.Method, _ path: String, _ handler: @escaping (Request) throws -> Response) {
+    public mutating func use(_ method: Request.Method, _ path: String, _ handler: @escaping (Request, Response) throws -> Response) {
         let route = BasicRoute(method: method, path: path, handler: handler)
         routes.append(route)
     }
@@ -123,6 +140,10 @@ public final class Ace {
     
     public init() {}
     
+    public func use(_ middlewareHandler: @escaping (Request, Response) throws -> Chainer) {
+        self.middlewares.append(BasicMiddleware(middlewareHandler))
+    }
+    
     public func use(_ middleware: Middleware){
         self.middlewares.append(middleware)
     }
@@ -152,20 +173,22 @@ public final class Ace {
     
     public func handler(_ request: Request, _ writer: ResponrWriter) {
         do {
-            if let response = try middlewares.chain(request) {
+            let chainer = try middlewares.chain(request)
+            switch chainer {
+            case .respond(to: let response):
                 try serialize(request, response, writer)
-                return
-            }
-            
-            for router in routers {
-                if let (route, newRequest) = router.matchedRoute(for: request) {
-                    try serialize(request, route.respond(newRequest), writer)
-                    return
+                
+            case .next(let response):
+                for router in routers {
+                    if let (route, newRequest) = router.matchedRoute(for: request) {
+                        try serialize(request, route.respond(newRequest, response), writer)
+                        return
+                    }
                 }
+                
+                // 404
+                throw RouterError.routeNotFound(request.path ?? "/")
             }
-            
-            // 404
-            throw RouterError.routeNotFound(request.path ?? "/")
             
         } catch {
             do {
@@ -228,4 +251,28 @@ extension Request.Method: Hashable {
 
 public func ==(lhs: Request.Method, rhs: Request.Method) -> Bool {
     return lhs.description == rhs.description
+}
+
+
+
+extension Response {
+    
+    public mutating func set(headerKey: String, value: String) {
+        self.headers[headerKey] = value
+    }
+    
+    public mutating func set(body data: Data) {
+        self.body = .buffer(data)
+        self.contentLength = data.count
+    }
+    
+    public mutating func set(body text: String) {
+        self.body = .buffer(text.data)
+        self.contentLength = text.characters.count
+    }
+    
+    public mutating func set(body bytes: Bytes) {
+        self.body = .buffer(Data.init(bytes: bytes))
+        self.contentLength = bytes.count
+    }
 }
