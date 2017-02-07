@@ -39,7 +39,7 @@ protocol Route {
 }
 
 extension Route {
-    func params(_ request: Request) -> [String: String] {
+    public func params(_ request: Request) -> [String: String] {
         guard let path = request.path else {
             return [:]
         }
@@ -181,7 +181,7 @@ public final class Ace {
 }
 
 extension Request {
-    var params: [String: Any]? {
+    public var params: [String: Any]? {
         get {
             return self.storage["params"] as? [String: Any]
         }
