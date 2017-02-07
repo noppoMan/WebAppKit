@@ -21,7 +21,9 @@ public struct ServeStaticMiddleware: Middleware {
         self.root = root
     }
     
-    public func respond(to request: Request) throws -> Chainer {
+    public func respond(to request: Request, response: Response) throws -> Chainer {
+        var response = response
+        
         let path = request.path ?? "/"
         
         do {
@@ -29,17 +31,21 @@ public struct ServeStaticMiddleware: Middleware {
             
             if let ext = pathes.last?.components(separatedBy: ".").last, let contentType = mediaType(forFileExtension: ext) {
                 let data = try Data(contentsOf: URL(string: "file://\(root)\(path)")!)
+                
+                response.headers["Server"] = "Prorsum Micro HTTP Server"
+                
                 var response = Response(
                     headers: ["Server": "Prorsum Micro HTTP Server"],
                     body: .buffer(data)
                 )
                 
                 response.contentType = contentType
+                response.body = .buffer(data)
                 
                 return .respond(to: response)
             }
             
-            return .next
+            return .next(response)
         } catch {
             throw ServeStaticMiddlewareError.resourceNotFound(path)
         }
