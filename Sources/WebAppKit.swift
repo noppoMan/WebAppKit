@@ -263,13 +263,16 @@ extension Response {
     
     public mutating func set(body data: Data) {
         self.body = .buffer(data)
+        self.contentLength = data.count
     }
     
     public mutating func set(body text: String) {
         self.body = .buffer(text.data)
+        self.contentLength = text.characters.count
     }
     
     public mutating func set(body bytes: Bytes) {
         self.body = .buffer(Data.init(bytes: bytes))
+        self.contentLength = bytes.count
     }
 }
