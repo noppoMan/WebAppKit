@@ -3,7 +3,7 @@ import Foundation
 
 public enum Chainer {
     case respond(to: Response)
-    case next(Response)
+    case next(Request, Response)
 }
 
 public typealias Respond = (Request, Response) throws -> Response
@@ -27,20 +27,22 @@ public struct BasicMiddleware: Middleware {
 
 extension Collection where Self.Iterator.Element == Middleware {
     public func chain(_ request: Request) throws -> Chainer {
+        var request = request
         var response = Response()
         
         for middleware in self.reversed() {
             let chainer = try middleware.respond(to: request, response: response)
             switch chainer {
-            case .next(let res):
+            case .next(let req, let res):
                 response = res
+                request = req
                 continue
             default:
                 return chainer
             }
         }
         
-        return .next(response)
+        return .next(request, response)
     }
 }
 
@@ -94,7 +96,13 @@ struct BasicRoute: Route {
     }
     
     func respond(_ request: Request, _ response: Response) throws -> Response {
-        return try handler(request, response)
+        switch try middlewares.chain(request) {
+        case .respond(to: let response):
+            return response
+            
+        case .next(let request, let response):
+            return try handler(request, response)
+        }
     }
 }
 
@@ -107,8 +115,8 @@ public struct Router {
     
     public init() {}
     
-    public mutating func use(_ method: Request.Method, _ path: String, _ handler: @escaping (Request, Response) throws -> Response) {
-        let route = BasicRoute(method: method, path: path, handler: handler)
+    public mutating func use(_ method: Request.Method, _ path: String, _ middlewares: [Middleware] = [], _ handler: @escaping (Request, Response) throws -> Response) {
+        let route = BasicRoute(method: method, path: path, middlewares: middlewares, handler: handler)
         routes.append(route)
     }
     
@@ -178,7 +186,7 @@ public final class Ace {
             case .respond(to: let response):
                 try serialize(request, response, writer)
                 
-            case .next(let response):
+            case .next(let request, let response):
                 for router in routers {
                     if let (route, newRequest) = router.matchedRoute(for: request) {
                         try serialize(request, route.respond(newRequest, response), writer)
@@ -253,8 +261,6 @@ public func ==(lhs: Request.Method, rhs: Request.Method) -> Bool {
     return lhs.description == rhs.description
 }
 
-
-
 extension Response {
     
     public mutating func set(headerKey: String, value: String) {
@@ -268,11 +274,23 @@ extension Response {
     
     public mutating func set(body text: String) {
         self.body = .buffer(text.data)
-        self.contentLength = text.characters.count
+        self.contentLength = text.utf8.count
     }
     
     public mutating func set(body bytes: Bytes) {
         self.body = .buffer(Data.init(bytes: bytes))
         self.contentLength = bytes.count
+    }
+}
+
+extension Body {
+    public func becomeBuffer() -> Data? {
+        switch self {
+        case .buffer(let data):
+            return data
+        
+        default:
+            return nil
+        }
     }
 }

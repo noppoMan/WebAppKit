@@ -45,7 +45,7 @@ public struct ServeStaticMiddleware: Middleware {
                 return .respond(to: response)
             }
             
-            return .next(response)
+            return .next(request, response)
         } catch {
             throw ServeStaticMiddlewareError.resourceNotFound(path)
         }
